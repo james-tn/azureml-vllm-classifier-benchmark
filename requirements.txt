@@ -1,0 +1,5 @@
+azure-ai-ml>=1.20
+azure-identity>=1.17
+requests
+aiohttp
+# hf_reference.py only (CUDA machine): torch transformers safetensors

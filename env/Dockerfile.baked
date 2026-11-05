@@ -1,0 +1,23 @@
+# Serving image with a stand-in classifier baked in: Qwen3.5-0.8B (text-only, pinned revision) plus a
+# 7-class sequence-classification head. Built in Azure by ACR Tasks (python deploy.py image), so the
+# deployment needs no Azure ML model asset or workspace-storage access.
+ARG BASE_IMAGE=vllm/vllm-openai:v0.32.0-x86_64-cu129
+FROM ${BASE_IMAGE}
+
+# The cu129 image ships a CUDA-13 torchcodec build (needs libnvrtc.so.13) that crashes vLLM on import.
+# It is only used for audio decoding, which a text classifier does not need.
+RUN pip uninstall -y torchcodec
+
+ARG BASE_REPO=vllm-project/Qwen3.5-0.8B-text-only
+ARG BASE_REVISION=b966f44eb9208684f863892a0b53744aecc16846
+COPY build_checkpoint.py /tmp/build_checkpoint.py
+RUN python3 -c "from huggingface_hub import snapshot_download as d; d('${BASE_REPO}', revision='${BASE_REVISION}', local_dir='/tmp/base', allow_patterns=['config.json','model.safetensors','tokenizer.json','tokenizer_config.json'])" \
+ && python3 /tmp/build_checkpoint.py /tmp/base /models/classifier \
+ && rm -rf /tmp/base /tmp/build_checkpoint.py /root/.cache/huggingface
+
+ENV MODEL_PATH=/models/classifier
+ENV VLLM_ARGS="--max-model-len 8192"
+COPY score_alias.py /opt/score_alias.py
+ENV PYTHONPATH=/opt
+COPY start.sh /start.sh
+ENTRYPOINT ["bash", "/start.sh"]

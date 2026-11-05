@@ -1,0 +1,16 @@
+# Serving image with your own sequence-classification checkpoint baked in.
+# Put the full checkpoint (config.json with *ForSequenceClassification + id2label, *.safetensors,
+# tokenizer files) in env/checkpoint/, set DOCKERFILE=Dockerfile.byo, then: python deploy.py image
+ARG BASE_IMAGE=vllm/vllm-openai:v0.32.0-x86_64-cu129
+FROM ${BASE_IMAGE}
+
+# The cu129 image ships a CUDA-13 torchcodec build (needs libnvrtc.so.13) that crashes vLLM on import.
+RUN pip uninstall -y torchcodec
+
+COPY checkpoint/ /models/classifier/
+ENV MODEL_PATH=/models/classifier
+ENV VLLM_ARGS="--max-model-len 8192"
+COPY score_alias.py /opt/score_alias.py
+ENV PYTHONPATH=/opt
+COPY start.sh /start.sh
+ENTRYPOINT ["bash", "/start.sh"]
